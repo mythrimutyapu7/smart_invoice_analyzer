@@ -1,0 +1,16 @@
+### Test Save Invoice
+POST http://localhost:4000/test-invoice
+Content-Type: application/json
+
+{
+  "fileName": "sample.pdf",
+  "vendor": "ABC Pvt Ltd",
+  "date": "2026-02-24",
+  "amount": 4500,
+  "category": "Utilities",
+  "rawText": "Electricity bill Feb"
+}
+
+### Upload Invoice
+POST http://localhost:4000/upload
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary
