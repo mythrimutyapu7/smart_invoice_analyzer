@@ -6,8 +6,7 @@ require("dotenv").config();
 const connectDB = require("./config/db");
 const Invoice = require("./models/Invoice");
 const upload = require("./middleware/upload");
-const extractText = require("./services/ocr");
-const extractFields = require("./services/extractFields");
+const extractData = require("./services/ocr");
 const { authMiddleware } = require("./middleware/auth");
 const invoicesRouter = require("./routes/invoices");
 const authRouter = require("./routes/auth");
@@ -59,49 +58,7 @@ app.post("/test-invoice", async (req, res) => {
   }
 });
 
-// Upload invoice file (authenticated)
-// Upload + OCR + extraction
-app.post("/upload", authMiddleware, upload.single("invoice"), async (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({
-        message: "No file uploaded",
-      });
-    }
 
-    // OCR
-    const text = await extractText(req.file.filename);
-
-    // Extract fields
-    const fields = extractFields(text);
-
-    // Save in DB
-    const invoice = new Invoice({
-      userId: req.user._id,
-      fileName: req.file.filename,
-      rawText: text,
-      vendor: fields.vendor,
-      date: fields.issueDate || new Date(),
-      amount: fields.total,
-      category: fields.category || "Uncategorized",
-    });
-
-    await invoice.save();
-
-    res.status(201).json({
-      message: "Invoice processed successfully",
-      file: req.file.filename,
-      extracted: fields,
-    });
-
-  } catch (error) {
-    console.error(error);
-
-    res.status(500).json({
-      error: error.message,
-    });
-  }
-});
 
 // SPA fallback: serve index.html for any non-API route
 app.use((req, res, next) => {
