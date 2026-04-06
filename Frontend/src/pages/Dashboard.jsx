@@ -3,13 +3,15 @@ import { getSummary, getFiltersLookup } from "../api";
 import { SummaryCards } from "../components/SummaryCards";
 import { CategoryChart } from "../components/CategoryChart";
 import { MonthlyChart } from "../components/MonthlyChart";
-import { Loader2, AlertCircle, Filter } from "lucide-react";
+import { Loader2, AlertCircle, Filter, LayoutDashboard, BarChart3 } from "lucide-react";
 
 import { MonthlyTracker } from "../components/MonthlyTracker";
 
 export function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
+
   const [filters, setFilters] = useState({ vendor: "", category: "", status: "", startDate: "", endDate: "" });
   const [lookup, setLookup] = useState({ vendors: [], categories: [] });
 
@@ -37,11 +39,36 @@ export function Dashboard() {
 
   return (
     <div>
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 16 }}>
         <div>
           <h2 className="page-title">Dashboard Overview</h2>
           <p className="page-subtitle">Track your spending and invoice analytics.</p>
         </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 24, marginBottom: 24, borderBottom: '1px solid var(--border)' }}>
+        <button
+          onClick={() => setActiveTab("overview")}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '12px 0', background: 'none', border: 'none',
+            borderBottom: activeTab === "overview" ? '2px solid #4318FF' : '2px solid transparent',
+            color: activeTab === "overview" ? '#4318FF' : 'var(--text-secondary)',
+            fontWeight: 600, cursor: 'pointer', fontSize: '1rem', transition: 'all 0.2s'
+          }}
+        >
+          <LayoutDashboard size={18} /> Monthly Insights
+        </button>
+        <button
+          onClick={() => setActiveTab("analytics")}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 8, padding: '12px 0', background: 'none', border: 'none',
+            borderBottom: activeTab === "analytics" ? '2px solid #4318FF' : '2px solid transparent',
+            color: activeTab === "analytics" ? '#4318FF' : 'var(--text-secondary)',
+            fontWeight: 600, cursor: 'pointer', fontSize: '1rem', transition: 'all 0.2s'
+          }}
+        >
+          <BarChart3 size={18} /> Advanced Analytics
+        </button>
       </div>
 
       {loading ? (
@@ -57,51 +84,57 @@ export function Dashboard() {
             </div>
           )}
 
-          <MonthlyTracker />
+          {activeTab === "overview" && (
+            <MonthlyTracker />
+          )}
 
-          <section className="card filter-bar" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 24, padding: 16, alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 500 }}><Filter size={18}/> Filters:</div>
-            
-            <select value={filters.status} onChange={e => updateFilter('status', e.target.value)}>
-              <option value="">All Statuses</option>
-              <option value="paid">Paid</option>
-              <option value="pending">Pending</option>
-              <option value="overdue">Overdue</option>
-            </select>
+          {activeTab === "analytics" && (
+            <div style={{ animation: 'fade-in 0.3s ease-out' }}>
+              <section className="card filter-bar" style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 24, padding: 16, alignItems: 'center', background: 'var(--bg-primary)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 500 }}><Filter size={18}/> Filters:</div>
+                
+                <select style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} value={filters.status} onChange={e => updateFilter('status', e.target.value)}>
+                  <option value="">All Statuses</option>
+                  <option value="paid">Paid</option>
+                  <option value="pending">Pending</option>
+                  <option value="overdue">Overdue</option>
+                </select>
 
-            <select value={filters.vendor} onChange={e => updateFilter('vendor', e.target.value)}>
-              <option value="">All Vendors</option>
-              {lookup.vendors.map(v => <option key={v} value={v}>{v}</option>)}
-            </select>
+                <select style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} value={filters.vendor} onChange={e => updateFilter('vendor', e.target.value)}>
+                  <option value="">All Vendors</option>
+                  {lookup.vendors.map(v => <option key={v} value={v}>{v}</option>)}
+                </select>
 
-            <select value={filters.category} onChange={e => updateFilter('category', e.target.value)}>
-              <option value="">All Categories</option>
-              {lookup.categories.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
+                <select style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} value={filters.category} onChange={e => updateFilter('category', e.target.value)}>
+                  <option value="">All Categories</option>
+                  {lookup.categories.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
 
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-              <input type="date" value={filters.startDate} onChange={e => updateFilter('startDate', e.target.value)} />
-              <span>to</span>
-              <input type="date" value={filters.endDate} onChange={e => updateFilter('endDate', e.target.value)} />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <input type="date" style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} value={filters.startDate} onChange={e => updateFilter('startDate', e.target.value)} />
+                  <span className="muted">to</span>
+                  <input type="date" style={{ padding: '8px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} value={filters.endDate} onChange={e => updateFilter('endDate', e.target.value)} />
+                </div>
+                
+                <button className="btn secondary" onClick={() => setFilters({ vendor: "", category: "", status: "", startDate: "", endDate: "" })}>Clear Filters</button>
+              </section>
+
+              <section className="summary-cards-wrapper">
+                <SummaryCards summary={summary} />
+              </section>
+              
+              <section className="charts-grid">
+                <div className="card chart-card">
+                  <h2>Category Breakdown</h2>
+                  <CategoryChart data={summary?.categories ?? []} />
+                </div>
+                <div className="card chart-card">
+                  <h2>Historical Spending</h2>
+                  <MonthlyChart data={summary?.monthly ?? []} />
+                </div>
+              </section>
             </div>
-            
-            <button className="btn secondary" onClick={() => setFilters({ vendor: "", category: "", status: "", startDate: "", endDate: "" })}>Clear</button>
-          </section>
-
-          <section className="summary-cards-wrapper">
-            <SummaryCards summary={summary} />
-          </section>
-          
-          <section className="charts-grid">
-            <div className="card chart-card">
-              <h2>Category Breakdown</h2>
-              <CategoryChart data={summary?.categories ?? []} />
-            </div>
-            <div className="card chart-card">
-              <h2>Monthly Spending</h2>
-              <MonthlyChart data={summary?.monthly ?? []} />
-            </div>
-          </section>
+          )}
         </>
       )}
     </div>
