@@ -52,6 +52,25 @@ export async function getMonthlyInsights() {
   return apiFetch(`${API_BASE}/monthly-insights`);
 }
 
+export async function exportReport(options = {}, format = "csv") {
+  const url = buildUrl(`${API_BASE}/export`, { ...options, format });
+  const headers = getAuthHeaders();
+  
+  const resp = await fetch(url, { headers });
+  if (!resp.ok) throw new Error("Failed to export report");
+  
+  const blob = await resp.blob();
+  const downloadUrl = window.URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.style.display = "none";
+  a.href = downloadUrl;
+  a.download = `invoices_report.${format}`;
+  document.body.appendChild(a);
+  a.click();
+  window.URL.revokeObjectURL(downloadUrl);
+  a.remove();
+}
+
 export async function uploadInvoice({ file }) {
   const form = new FormData();
   form.append("invoice", file);

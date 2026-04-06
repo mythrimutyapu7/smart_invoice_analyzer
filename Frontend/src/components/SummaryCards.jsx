@@ -10,17 +10,7 @@ export function SummaryCards({ summary }) {
         </div>
         <div className="stat-info">
           <p>{summary ? summary.invoiceCount : "—"}</p>
-          <h3>Total Invoices</h3>
-        </div>
-      </div>
-      
-      <div className="colored-stat-card bg-blue">
-        <div className="stat-icon">
-          <DollarSign size={24} />
-        </div>
-        <div className="stat-info">
-          <p>{summary ? formatCurrency(summary.totalAmount) : "—"}</p>
-          <h3>Total Spent</h3>
+          <h3>Total Documents</h3>
         </div>
       </div>
 

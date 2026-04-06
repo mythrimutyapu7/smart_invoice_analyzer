@@ -3,6 +3,7 @@ const mongoose = require("mongoose");
 const invoiceSchema = new mongoose.Schema(
   {
     fileName: String,
+    invoiceNo: String,
     vendor: String,
     date: {
       type: Date,
@@ -24,6 +25,11 @@ const invoiceSchema = new mongoose.Schema(
     category: {
       type: String,
       default: "Uncategorized",
+    },
+    type: {
+      type: String,
+      enum: ["expense", "income"],
+      default: "expense",
     },
     status: {
       type: String,

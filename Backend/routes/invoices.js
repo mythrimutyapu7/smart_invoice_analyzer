@@ -2,6 +2,7 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 const express = require("express");
+const PDFDocument = require("pdfkit");
 const Invoice = require("../models/Invoice");
 const extractData = require("../services/ocr");
 
@@ -134,7 +135,7 @@ router.post("/upload", upload.single("invoice"), async (req, res) => {
 // 2b. POST /api/invoices/confirm - SAVE TO DB
 router.post("/confirm", async (req, res) => {
   try {
-    const { fileName, extractedData, vendor, amount, date, category } = req.body;
+    const { fileName, extractedData, vendor, invoiceNo, amount, date, category, type } = req.body;
     
     const issueDate = new Date(date);
     const defaultDueDate = new Date(issueDate.getTime() + 30 * 24 * 60 * 60 * 1000); 
@@ -142,6 +143,8 @@ router.post("/confirm", async (req, res) => {
     const invoice = new Invoice({
       userId: req.user._id,
       fileName,
+      invoiceNo: invoiceNo || "N/A",
+      type: type || "expense",
       rawText: JSON.stringify(extractedData),
       vendor,
       date: issueDate,
@@ -183,7 +186,12 @@ router.get("/summary", async (req, res) => {
 
     const totals = await Invoice.aggregate([
       { $match: userMatch },
-      { $group: { _id: null, totalAmount: { $sum: "$amount" }, invoiceCount: { $sum: 1 } } },
+      { $group: { 
+          _id: null, 
+          totalIncome: { $sum: { $cond: [{ $eq: ["$type", "income"] }, "$amount", 0] } },
+          totalExpense: { $sum: { $cond: [{ $eq: ["$type", "expense"] }, "$amount", 0] } },
+          invoiceCount: { $sum: 1 } 
+      } },
     ]);
 
     const statusCounts = await Invoice.aggregate([
@@ -204,15 +212,16 @@ router.get("/summary", async (req, res) => {
       {
         $group: {
           _id: { $dateToString: { format: "%Y-%m", date: "$date" } },
-          total: { $sum: "$amount" }
+          income: { $sum: { $cond: [{ $eq: ["$type", "income"] }, "$amount", 0] } },
+          expense: { $sum: { $cond: [{ $eq: ["$type", "expense"] }, "$amount", 0] } }
         }
       },
       { $sort: { _id: 1 } }
     ]);
 
-    const { totalAmount = 0, invoiceCount = 0 } = totals[0] || {};
+    const { totalIncome = 0, totalExpense = 0, invoiceCount = 0 } = totals[0] || {};
     const { overdueCount = 0, overdueAmount = 0, pendingCount = 0, pendingAmount = 0 } = statusCounts[0] || {};
-    res.json({ categories, monthly, totalAmount, invoiceCount, overdueCount, overdueAmount, pendingCount, pendingAmount });
+    res.json({ categories, monthly, totalIncome, totalExpense, netBalance: totalIncome - totalExpense, invoiceCount, overdueCount, overdueAmount, pendingCount, pendingAmount });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -298,6 +307,93 @@ router.get("/monthly-insights", async (req, res) => {
       dailyTrend: dailyData,
       categoryBreakdown: categoryData
     });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 7. GET /api/invoices/export - Generate PDF/CSV
+router.get("/export", async (req, res) => {
+  try {
+    const { format, sortField = "createdAt", sortOrder = "desc", search, category, status, startDate, endDate } = req.query;
+    const userId = req.user._id;
+
+    const filter = { userId };
+    if (search) {
+      const regex = new RegExp(search, "i");
+      filter.$or = [{ vendor: regex }, { category: regex }, { invoiceNo: regex }];
+    }
+    if (category) filter.category = category;
+    if (status) filter.status = status;
+    if (startDate || endDate) {
+      filter.date = {};
+      if (startDate) filter.date.$gte = new Date(startDate);
+      if (endDate) filter.date.$lte = new Date(endDate);
+    }
+
+    const sort = { [sortField]: sortOrder === "asc" ? 1 : -1 };
+    const invoices = await Invoice.find(filter).sort(sort);
+
+    if (format === "csv") {
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", 'attachment; filename="invoices_report.csv"');
+      
+      let csv = "Invoice No,Vendor,Category,Date,Due Date,Status,Amount\n";
+      invoices.forEach(inv => {
+        csv += `"${inv.invoiceNo || ''}","${inv.vendor}","${inv.category}","${new Date(inv.date).toLocaleDateString()}","${new Date(inv.dueDate).toLocaleDateString()}","${inv.status}",${inv.amount}\n`;
+      });
+      return res.send(csv);
+    } else if (format === "pdf") {
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", 'attachment; filename="invoices_report.pdf"');
+      
+      const doc = new PDFDocument({ margin: 40 });
+      doc.pipe(res);
+      
+      doc.fontSize(20).text("Financial Report", { align: "center" });
+      doc.moveDown(0.5);
+      doc.fontSize(10).fillColor("gray").text(`Generated on: ${new Date().toLocaleString()}`, { align: "center" });
+      doc.moveDown(2);
+      
+      const totalAmount = invoices.reduce((s, i) => s + i.amount, 0);
+      const overdueAmount = invoices.filter(i => i.status === 'overdue').reduce((s, i) => s + i.amount, 0);
+      
+      doc.fillColor("black").fontSize(12).text(`Total Invoices: ${invoices.length}`);
+      doc.text(`Total Expenditure: $${totalAmount.toFixed(2)}`);
+      if (overdueAmount > 0) {
+        doc.fillColor("red").text(`Overdue Payments: $${overdueAmount.toFixed(2)}`);
+      }
+      doc.fillColor("black").moveDown(2);
+
+      const tableTop = doc.y;
+      doc.fontSize(10).font("Helvetica-Bold");
+      doc.text("Date", 40, tableTop);
+      doc.text("Vendor", 120, tableTop);
+      doc.text("Category", 300, tableTop);
+      doc.text("Status", 420, tableTop);
+      doc.text("Amount", 500, tableTop);
+      
+      doc.moveTo(40, tableTop + 15).lineTo(550, tableTop + 15).stroke();
+
+      let y = tableTop + 25;
+      doc.font("Helvetica");
+      invoices.forEach((inv) => {
+        if (y > 700) {
+          doc.addPage();
+          y = 40;
+        }
+        doc.text(new Date(inv.date).toLocaleDateString(), 40, y);
+        doc.text(inv.vendor.substring(0, 30), 120, y);
+        doc.text(inv.category.substring(0, 18), 300, y);
+        doc.fillColor(inv.status === 'overdue' ? 'red' : inv.status === 'paid' ? 'green' : 'black').text(inv.status.toUpperCase(), 420, y);
+        doc.fillColor('black').text(`$${inv.amount.toFixed(2)}`, 500, y);
+        y += 20;
+      });
+      
+      doc.end();
+    } else {
+      res.status(400).json({ message: "Invalid format requested." });
+    }
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

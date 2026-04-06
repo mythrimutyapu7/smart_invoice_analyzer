@@ -24,6 +24,8 @@ export function Upload() {
         warnings: resp.warnings || [],
         vendor: parsed.vendor || "",
         amount: parsed.total || 0,
+        type: "expense",
+        invoiceNo: parsed.invoiceNo || "",
         date: parsed.issueDate || new Date().toISOString().slice(0, 10),
         category: parsed.category || "Uncategorized"
       });
@@ -41,6 +43,8 @@ export function Upload() {
         extractedData: reviewData.extractedData,
         vendor: reviewData.vendor,
         amount: reviewData.amount,
+        type: reviewData.type,
+        invoiceNo: reviewData.invoiceNo,
         date: reviewData.date,
         category: reviewData.category
       });
@@ -105,10 +109,26 @@ export function Upload() {
               </div>
             )}
 
+            <div style={{ display: 'flex', gap: 16, marginBottom: 20 }}>
+              <div style={{ flex: 1, padding: 12, border: reviewData.type === 'expense' ? '2px solid #D93025' : '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', textAlign: 'center', background: reviewData.type === 'expense' ? '#FEE2E2' : 'transparent' }} onClick={() => updateReviewField('type', 'expense')}>
+                <input type="radio" checked={reviewData.type === 'expense'} readOnly style={{ marginRight: 8 }} />
+                <span style={{ fontWeight: 600, color: reviewData.type === 'expense' ? '#D93025' : 'inherit' }}>Accounts Payable (Expense)</span>
+              </div>
+              <div style={{ flex: 1, padding: 12, border: reviewData.type === 'income' ? '2px solid #1E8E3E' : '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', textAlign: 'center', background: reviewData.type === 'income' ? '#E6F4EA' : 'transparent' }} onClick={() => updateReviewField('type', 'income')}>
+                <input type="radio" checked={reviewData.type === 'income'} readOnly style={{ marginRight: 8 }} />
+                <span style={{ fontWeight: 600, color: reviewData.type === 'income' ? '#1E8E3E' : 'inherit' }}>Accounts Receivable (Income)</span>
+              </div>
+            </div>
+
             <div style={{ display: 'grid', gap: 16 }}>
               <div>
-                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6 }}>Vendor Name</label>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6 }}>{reviewData.type === 'income' ? 'Client Name' : 'Vendor Name'}</label>
                 <input style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }} value={reviewData.vendor} onChange={e => updateReviewField('vendor', e.target.value)} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6 }}>Invoice No</label>
+                <input style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }} value={reviewData.invoiceNo} onChange={e => updateReviewField('invoiceNo', e.target.value)} />
               </div>
               
               <div>

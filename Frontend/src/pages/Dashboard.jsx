@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { getSummary, getFiltersLookup } from "../api";
+import { getSummary, getFiltersLookup, exportReport } from "../api";
 import { SummaryCards } from "../components/SummaryCards";
 import { CategoryChart } from "../components/CategoryChart";
 import { MonthlyChart } from "../components/MonthlyChart";
-import { Loader2, AlertCircle, Filter, LayoutDashboard, BarChart3 } from "lucide-react";
+import { Loader2, AlertCircle, Filter, LayoutDashboard, BarChart3, Download } from "lucide-react";
 
 import { MonthlyTracker } from "../components/MonthlyTracker";
+import { ProfitLossCards } from "../components/ProfitLossCards";
 
 export function Dashboard() {
   const [summary, setSummary] = useState(null);
@@ -117,7 +118,18 @@ export function Dashboard() {
                 </div>
                 
                 <button className="btn secondary" onClick={() => setFilters({ vendor: "", category: "", status: "", startDate: "", endDate: "" })}>Clear Filters</button>
+
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+                  <button className="btn" onClick={() => exportReport(filters, 'csv')} style={{ display: 'flex', gap: 6, alignItems: 'center', background: '#e0e7ff', color: '#4318FF' }}>
+                    <Download size={16} /> Export CSV
+                  </button>
+                  <button className="btn" onClick={() => exportReport(filters, 'pdf')} style={{ display: 'flex', gap: 6, alignItems: 'center', background: '#FEE2E2', color: '#DC2626' }}>
+                    <Download size={16} /> Export PDF
+                  </button>
+                </div>
               </section>
+
+              <ProfitLossCards summary={summary} />
 
               <section className="summary-cards-wrapper">
                 <SummaryCards summary={summary} />

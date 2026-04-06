@@ -12,7 +12,8 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
 export function MonthlyChart({ data }) {
   const labels = data.map((d) => d._id);
-  const totals = data.map((d) => d.total);
+  const incomeTotals = data.map((d) => d.income || 0);
+  const expenseTotals = data.map((d) => d.expense || 0);
 
   return (
     <Bar
@@ -20,9 +21,20 @@ export function MonthlyChart({ data }) {
         labels,
         datasets: [
           {
-            label: "Total",
-            data: totals,
-            backgroundColor: "rgba(56, 189, 248, 0.75)",
+            label: "Income",
+            data: incomeTotals,
+            backgroundColor: "#E6F4EA",
+            borderColor: "#1E8E3E",
+            borderWidth: 1,
+            borderRadius: 4
+          },
+          {
+            label: "Expenses",
+            data: expenseTotals,
+            backgroundColor: "#FEE2E2",
+            borderColor: "#D93025",
+            borderWidth: 1,
+            borderRadius: 4
           },
         ],
       }}
