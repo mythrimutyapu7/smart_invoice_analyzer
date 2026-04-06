@@ -60,7 +60,18 @@ router.get("/", async (req, res) => {
 
     if (search) {
       const regex = new RegExp(search, "i");
-      filter.$or = [{ vendor: regex }, { category: regex }, { invoiceNo: regex }];
+      filter.$or = [
+        { vendor: regex },
+        { category: regex },
+        { invoiceNo: regex },
+        { status: regex }
+      ];
+
+      // If search string cleanly parses as a number, allow exact numeric searches on amount
+      const parsedNum = parseFloat(search);
+      if (!isNaN(parsedNum)) {
+        filter.$or.push({ amount: parsedNum });
+      }
     }
 
     if (category) filter.category = category;

@@ -1,17 +1,22 @@
 import { useCallback, useEffect, useState } from "react";
-import { getSummary, getFiltersLookup, exportReport } from "../api";
+import { getSummary, getFiltersLookup, exportReport, getInvoices } from "../api";
 import { SummaryCards } from "../components/SummaryCards";
 import { CategoryChart } from "../components/CategoryChart";
 import { MonthlyChart } from "../components/MonthlyChart";
-import { Loader2, AlertCircle, Filter, LayoutDashboard, BarChart3, Download } from "lucide-react";
+import { Loader2, AlertCircle, Filter, LayoutDashboard, BarChart3, Download, Search } from "lucide-react";
 
 import { MonthlyTracker } from "../components/MonthlyTracker";
 import { ProfitLossCards } from "../components/ProfitLossCards";
+import { InvoiceTable } from "../components/InvoiceTable";
 
 export function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
+
+  const [globalSearchText, setGlobalSearchText] = useState("");
+  const [searchResults, setSearchResults] = useState([]);
+  const [searchLoading, setSearchLoading] = useState(false);
 
   const [filters, setFilters] = useState({ vendor: "", category: "", status: "", startDate: "", endDate: "" });
   const [lookup, setLookup] = useState({ vendors: [], categories: [] });
@@ -35,6 +40,22 @@ export function Dashboard() {
   useEffect(() => {
     getFiltersLookup().then(setLookup).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    if (!globalSearchText.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setSearchLoading(true);
+      try {
+        const resp = await getInvoices({ search: globalSearchText, limit: 100 });
+        setSearchResults(resp.data);
+      } catch (err) { }
+      finally { setSearchLoading(false); }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [globalSearchText]);
 
   const updateFilter = (key, val) => setFilters(p => ({ ...p, [key]: val }));
 
@@ -72,7 +93,31 @@ export function Dashboard() {
         </button>
       </div>
 
-      {loading ? (
+      <div className="card" style={{ marginBottom: 24, padding: '16px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
+        <Search size={22} className="muted" />
+        <input 
+          type="search" 
+          placeholder="Global Search: Type a vendor, category, status, or exact amount (e.g. food, amazon, pending, 1000)..." 
+          value={globalSearchText} 
+          onChange={e => setGlobalSearchText(e.target.value)} 
+          style={{ flex: 1, border: 'none', outline: 'none', background: 'transparent', fontSize: '1.1rem' }} 
+        />
+      </div>
+
+      {globalSearchText.trim() ? (
+        <div className="card" style={{ padding: 24 }}>
+          <h3 style={{ marginTop: 0, marginBottom: 24, fontSize: '1.2rem' }}>
+             Search Results for "{globalSearchText}" 
+          </h3>
+          <InvoiceTable 
+             invoices={searchResults} 
+             loading={searchLoading} 
+             sort={{ field: 'date', order: 'desc' }} 
+             onSort={() => {}} 
+             onRefresh={() => setGlobalSearchText(globalSearchText + " ")} 
+          />
+        </div>
+      ) : loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
           <Loader2 className="muted" size={32} style={{ animation: 'spin 1s linear infinite' }} />
         </div>
