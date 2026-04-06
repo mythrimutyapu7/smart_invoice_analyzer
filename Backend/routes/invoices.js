@@ -7,6 +7,20 @@ const extractData = require("../services/ocr");
 
 const router = express.Router();
 
+async function checkAndMarkOverdue(userId) {
+  try {
+    await Invoice.updateMany({
+      userId,
+      status: "pending",
+      dueDate: { $lt: new Date(), $exists: true }
+    }, {
+      $set: { status: "overdue" }
+    });
+  } catch (e) {
+    console.error("Error auto-updating status", e);
+  }
+}
+
 // --- STORAGE CONFIGURATION ---
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -40,6 +54,7 @@ router.get("/", async (req, res) => {
     } = req.query;
 
     const userId = req.user._id;
+    await checkAndMarkOverdue(userId);
     const filter = { userId };
 
     if (search) {
@@ -68,9 +83,6 @@ router.get("/", async (req, res) => {
   }
 });
 
-// 2. POST /api/invoices/upload - AI ENSEMBLE UPLOAD
-// ... existing imports ...
-
 router.post("/upload", upload.single("invoice"), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
@@ -82,20 +94,36 @@ router.post("/upload", upload.single("invoice"), async (req, res) => {
     console.log(JSON.stringify(fields, null, 2));
     console.log("---------------------------------");
 
-    // DATABASE SAVE
-    const invoice = new Invoice({
-      userId: req.user._id,
-      fileName: req.file.filename,
-      rawText: JSON.stringify(fields),
-      vendor: fields.vendor || "Unknown Vendor",
-      date: fields.issueDate ? new Date(fields.issueDate) : new Date(),
-      amount: fields.total || 0,
-      invoiceNo: fields.invoiceNo || "N/A",
-      category: fields.category || "Uncategorized",
-    });
+    const vendor = fields.vendor || "Unknown Vendor";
+    const amount = fields.total || 0;
+    const userId = req.user._id;
 
-    await invoice.save();
-    res.json({ message: "Processed", extractedData: fields, invoice });
+    // Intelligent Flagging
+    const warnings = [];
+
+    // 1. Duplicate Detection
+    const duplicate = await Invoice.findOne({ userId, vendor, amount });
+    if (duplicate && amount > 0) {
+      warnings.push(`Duplicate Warning: A previous invoice from ${vendor} for $${amount} already exists in your database.`);
+    }
+
+    // 2. Anomaly Detection
+    if (amount > 0) {
+      const historical = await Invoice.aggregate([
+        { $match: { userId, vendor: vendor } },
+        { $group: { _id: null, avgAmount: { $avg: "$amount" }, count: { $sum: 1 } } }
+      ]);
+      
+      if (historical.length > 0) {
+         const { avgAmount, count } = historical[0];
+         // Trigger if amount > 200% of average, and there is a verified footprint (count >= 2)
+         if (count >= 2 && amount > (avgAmount * 2)) {
+           warnings.push(`Anomaly Warning: This amount ($${amount}) is unusually high compared to your historical average ($${avgAmount.toFixed(2)}) for ${vendor}.`);
+         }
+      }
+    }
+
+    res.json({ message: "Processed", extractedData: fields, fileName: req.file.filename, warnings });
 
   } catch (error) {
     console.error("ROUTE ERROR:", error);
@@ -103,11 +131,49 @@ router.post("/upload", upload.single("invoice"), async (req, res) => {
   }
 });
 
+// 2b. POST /api/invoices/confirm - SAVE TO DB
+router.post("/confirm", async (req, res) => {
+  try {
+    const { fileName, extractedData, vendor, amount, date, category } = req.body;
+    
+    const issueDate = new Date(date);
+    const defaultDueDate = new Date(issueDate.getTime() + 30 * 24 * 60 * 60 * 1000); 
+
+    const invoice = new Invoice({
+      userId: req.user._id,
+      fileName,
+      rawText: JSON.stringify(extractedData),
+      vendor,
+      date: issueDate,
+      dueDate: defaultDueDate,
+      amount,
+      category,
+    });
+    
+    await invoice.save();
+    res.json({ message: "Invoice Confirmed and Saved", invoice });
+  } catch (error) {
+    console.error("CONFIRM ERROR:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // 3. GET /api/invoices/summary - Aggregated totals
 router.get("/summary", async (req, res) => {
   try {
+    const { vendor, category, status, startDate, endDate } = req.query;
     const userId = req.user._id;
+    await checkAndMarkOverdue(userId);
+    
     const userMatch = { userId };
+    if (vendor) userMatch.vendor = vendor;
+    if (category) userMatch.category = category;
+    if (status) userMatch.status = status;
+    if (startDate || endDate) {
+      userMatch.date = {};
+      if (startDate) userMatch.date.$gte = new Date(startDate);
+      if (endDate) userMatch.date.$lte = new Date(endDate);
+    }
 
     const categories = await Invoice.aggregate([
       { $match: userMatch },
@@ -120,8 +186,33 @@ router.get("/summary", async (req, res) => {
       { $group: { _id: null, totalAmount: { $sum: "$amount" }, invoiceCount: { $sum: 1 } } },
     ]);
 
+    const statusCounts = await Invoice.aggregate([
+      { $match: userMatch },
+      {
+        $group: {
+          _id: null,
+          overdueCount: { $sum: { $cond: [{ $eq: ["$status", "overdue"] }, 1, 0] } },
+          overdueAmount: { $sum: { $cond: [{ $eq: ["$status", "overdue"] }, "$amount", 0] } },
+          pendingCount: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, 1, 0] } },
+          pendingAmount: { $sum: { $cond: [{ $eq: ["$status", "pending"] }, "$amount", 0] } }
+        }
+      }
+    ]);
+
+    const monthly = await Invoice.aggregate([
+      { $match: userMatch },
+      {
+        $group: {
+          _id: { $dateToString: { format: "%Y-%m", date: "$date" } },
+          total: { $sum: "$amount" }
+        }
+      },
+      { $sort: { _id: 1 } }
+    ]);
+
     const { totalAmount = 0, invoiceCount = 0 } = totals[0] || {};
-    res.json({ categories, totalAmount, invoiceCount });
+    const { overdueCount = 0, overdueAmount = 0, pendingCount = 0, pendingAmount = 0 } = statusCounts[0] || {};
+    res.json({ categories, monthly, totalAmount, invoiceCount, overdueCount, overdueAmount, pendingCount, pendingAmount });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -134,6 +225,79 @@ router.delete("/:id", async (req, res) => {
     const invoice = await Invoice.findOneAndDelete({ _id: req.params.id, userId });
     if (!invoice) return res.status(404).json({ message: "Invoice not found" });
     res.json({ message: "Invoice deleted" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 5. GET /api/invoices/filters-lookup
+router.get("/filters-lookup", async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const vendors = await Invoice.distinct("vendor", { userId });
+    const categories = await Invoice.distinct("category", { userId });
+    res.json({ vendors: vendors.filter(Boolean).sort(), categories: categories.filter(Boolean).sort() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 6. GET /api/invoices/monthly-insights
+router.get("/monthly-insights", async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const now = new Date();
+    
+    const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    
+    const thisMonthInvoices = await Invoice.find({
+      userId,
+      date: { $gte: firstDayThisMonth }
+    });
+    
+    const lastMonthInvoices = await Invoice.find({
+      userId,
+      date: { $gte: firstDayLastMonth, $lt: firstDayThisMonth }
+    });
+
+    const thisMonthTotal = thisMonthInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    const lastMonthTotal = lastMonthInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+
+    let growthFactor = 0;
+    if (lastMonthTotal === 0 && thisMonthTotal > 0) {
+      growthFactor = 100;
+    } else if (lastMonthTotal > 0) {
+      growthFactor = ((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100;
+    }
+
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const dailyData = Array.from({ length: daysInMonth }, (_, i) => ({
+      day: `${i + 1}`,
+      total: 0
+    }));
+
+    const categoryTotals = {};
+
+    thisMonthInvoices.forEach(inv => {
+      const day = new Date(inv.date).getDate() - 1;
+      if (dailyData[day]) dailyData[day].total += inv.amount;
+      
+      const cat = inv.category || "Uncategorized";
+      categoryTotals[cat] = (categoryTotals[cat] || 0) + inv.amount;
+    });
+
+    const categoryData = Object.entries(categoryTotals)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a,b) => b.value - a.value);
+
+    res.json({
+      thisMonthTotal,
+      lastMonthTotal,
+      growthFactor: parseFloat(growthFactor.toFixed(1)),
+      dailyTrend: dailyData,
+      categoryBreakdown: categoryData
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

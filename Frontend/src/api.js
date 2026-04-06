@@ -44,6 +44,14 @@ export async function getSummary(options = {}) {
   return apiFetch(url);
 }
 
+export async function getFiltersLookup() {
+  return apiFetch(`${API_BASE}/filters-lookup`);
+}
+
+export async function getMonthlyInsights() {
+  return apiFetch(`${API_BASE}/monthly-insights`);
+}
+
 export async function uploadInvoice({ file }) {
   const form = new FormData();
   form.append("invoice", file);
@@ -51,6 +59,14 @@ export async function uploadInvoice({ file }) {
   return apiFetch("/api/invoices/upload", {
     method: "POST",
     body: form,
+  });
+}
+
+export async function confirmInvoice(payload) {
+  return apiFetch("/api/invoices/confirm", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
   });
 }
 
@@ -64,4 +80,12 @@ export async function updateInvoice(id, payload) {
 
 export async function deleteInvoice(id) {
   return apiFetch(`${API_BASE}/${id}`, { method: "DELETE" });
+}
+
+export async function sendChatMessage(query) {
+  return apiFetch("/api/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ query }),
+  });
 }

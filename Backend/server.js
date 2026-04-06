@@ -10,6 +10,7 @@ const extractData = require("./services/ocr");
 const { authMiddleware } = require("./middleware/auth");
 const invoicesRouter = require("./routes/invoices");
 const authRouter = require("./routes/auth");
+const chatRouter = require("./routes/chat");
 
 const app = express();
 
@@ -28,6 +29,7 @@ app.use(express.static(frontendStaticPath));
 // API routes
 app.use("/api/auth", authRouter);
 app.use("/api/invoices", authMiddleware, invoicesRouter);
+app.use("/api/chat", authMiddleware, chatRouter);
 
 // Connect DB
 connectDB();

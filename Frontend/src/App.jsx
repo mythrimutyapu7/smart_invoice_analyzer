@@ -8,12 +8,13 @@ import { Upload } from "./pages/Upload";
 import { Account } from "./pages/Account";
 import { NotFound } from "./pages/NotFound";
 import { isAuthenticated } from "./auth";
+import { Layout } from "./components/Layout";
 
 function RequireAuth({ children }) {
   if (!isAuthenticated()) {
     return <Navigate to="/signin" replace />;
   }
-  return children;
+  return <Layout>{children}</Layout>;
 }
 
 export default function App() {

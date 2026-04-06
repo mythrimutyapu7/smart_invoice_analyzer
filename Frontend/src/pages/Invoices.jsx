@@ -1,11 +1,9 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { isAuthenticated } from "../auth";
 import { getInvoices } from "../api";
 import { InvoiceTable } from "../components/InvoiceTable";
+import { Search } from "lucide-react";
 
 export function Invoices() {
-  const navigate = useNavigate();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [paging, setPaging] = useState({ page: 1, limit: 10, total: 0 });
@@ -13,12 +11,8 @@ export function Invoices() {
   const [filters, setFilters] = useState({ search: "", startDate: "", endDate: "" });
 
   useEffect(() => {
-    if (!isAuthenticated()) {
-      navigate("/signin", { replace: true });
-      return;
-    }
     loadInvoices();
-  }, [navigate]);
+  }, []);
 
   const loadInvoices = async (opts = {}) => {
     setLoading(true);
@@ -36,8 +30,7 @@ export function Invoices() {
       setInvoices(resp.data);
       setPaging({ page: resp.page, limit: resp.limit, total: resp.total });
     } catch (err) {
-      // If token was invalid/expired, redirect to signin
-      navigate("/signin", { replace: true });
+      // Ignored for UI
     } finally {
       setLoading(false);
     }
@@ -60,40 +53,52 @@ export function Invoices() {
   };
 
   return (
-    <div className="page invoices">
+    <div>
       <div className="page-header">
-        <h2>Invoices</h2>
-        <div className="controls">
-          <input
-            value={filters.search}
-            onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
-            onKeyDown={(e) => e.key === "Enter" && handleSearch()}
-            placeholder="Search (vendor, category, notes)..."
-            type="search"
-          />
-          <button className="btn primary" onClick={handleSearch}>
-            Search
-          </button>
-          <button className="btn secondary" onClick={() => navigate("/dashboard")}>Dashboard</button>
+        <div>
+          <h2 className="page-title">Invoices</h2>
+          <p className="page-subtitle">Manage and track your extracted invoices.</p>
         </div>
       </div>
 
-      <InvoiceTable invoices={invoices} loading={loading} onSort={handleSort} sort={sort} onRefresh={() => loadInvoices({ page: paging.page })} />
+      <div className="table-container">
+        <div className="table-controls">
+          <div className="search-bar">
+            <Search size={18} />
+            <input
+              value={filters.search}
+              onChange={(e) => setFilters((f) => ({ ...f, search: e.target.value }))}
+              onKeyDown={(e) => e.key === "Enter" && handleSearch()}
+              placeholder="Search vendors or categories..."
+              type="search"
+            />
+          </div>
+          <button className="btn secondary" onClick={handleSearch}>
+            Filter
+          </button>
+        </div>
 
-      <div className="pagination" id="pagination">
-        <button className="btn" disabled={paging.page === 1} onClick={() => handlePageChange(paging.page - 1)}>
-          Prev
-        </button>
-        <span>
-          Page {paging.page} of {Math.max(1, Math.ceil(paging.total / paging.limit))}
-        </span>
-        <button
-          className="btn"
-          disabled={paging.page >= Math.ceil(paging.total / paging.limit)}
-          onClick={() => handlePageChange(paging.page + 1)}
-        >
-          Next
-        </button>
+        <div className="table-wrapper">
+          <InvoiceTable invoices={invoices} loading={loading} onSort={handleSort} sort={sort} onRefresh={() => loadInvoices({ page: paging.page })} />
+        </div>
+
+        <div className="table-controls" style={{ borderTop: '1px solid var(--border)' }}>
+          <span className="muted" style={{ fontSize: '0.9rem' }}>
+            Showing page {paging.page} of {Math.max(1, Math.ceil(paging.total / paging.limit))}
+          </span>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn secondary" disabled={paging.page === 1} onClick={() => handlePageChange(paging.page - 1)}>
+              Previous
+            </button>
+            <button
+              className="btn secondary"
+              disabled={paging.page >= Math.ceil(paging.total / paging.limit)}
+              onClick={() => handlePageChange(paging.page + 1)}
+            >
+              Next
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );

@@ -37,6 +37,7 @@ export function InvoiceTable({ invoices, loading, onSort, sort, onRefresh }) {
               <th onClick={() => onSort("date")}>Date{getSortIndicator("date")}</th>
               <th onClick={() => onSort("amount")}>Amount{getSortIndicator("amount")}</th>
               <th onClick={() => onSort("category")}>Category{getSortIndicator("category")}</th>
+              <th onClick={() => onSort("dueDate")}>Due Date{getSortIndicator("dueDate")}</th>
               <th onClick={() => onSort("status")}>Status{getSortIndicator("status")}</th>
               <th>Notes</th>
               <th>Actions</th>
@@ -48,6 +49,7 @@ export function InvoiceTable({ invoices, loading, onSort, sort, onRefresh }) {
               const row = {
                 vendor: invoice.vendor || "",
                 date: invoice.date ? invoice.date.slice(0, 10) : "",
+                dueDate: invoice.dueDate ? invoice.dueDate.slice(0, 10) : "",
                 amount: invoice.amount ?? 0,
                 category: invoice.category || "",
                 status: invoice.status || "pending",
@@ -104,8 +106,21 @@ export function InvoiceTable({ invoices, loading, onSort, sort, onRefresh }) {
                     />
                   </td>
                   <td>
+                    <input
+                      type="date"
+                      value={editingRow.dueDate ?? row.dueDate}
+                      onChange={(e) =>
+                        setEditing((prev) => ({
+                          ...prev,
+                          [invoice._id]: { ...row, ...prev[invoice._id], dueDate: e.target.value },
+                        }))
+                      }
+                    />
+                  </td>
+                  <td>
                     <select
                       value={editingRow.status ?? row.status}
+                      className={`badge ${(editingRow.status ?? row.status)}`}
                       onChange={(e) =>
                         setEditing((prev) => ({
                           ...prev,
@@ -129,7 +144,7 @@ export function InvoiceTable({ invoices, loading, onSort, sort, onRefresh }) {
                       }
                     />
                   </td>
-                  <td>
+                  <td style={{ whiteSpace: "nowrap" }}>
                     <button
                       className="btn save"
                       type="button"

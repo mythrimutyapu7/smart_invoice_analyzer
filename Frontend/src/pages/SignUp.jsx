@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { signUp } from "../auth";
+import { UserPlus } from "lucide-react";
 
 export function SignUp() {
   const [name, setName] = useState("");
@@ -26,43 +27,59 @@ export function SignUp() {
   };
 
   return (
-    <div className="page auth">
-      <h2>Create Account</h2>
-      <form className="auth-form" onSubmit={onSubmit}>
-        <label>
-          Name
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Your name"
-            required
-          />
-        </label>
-        <label>
-          Email
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            type="email"
-            placeholder="you@example.com"
-            required
-          />
-        </label>
-        <label>
-          Password
-          <input
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            type="password"
-            placeholder="Choose a password"
-            required
-          />
-        </label>
-        {error && <p className="error">{error}</p>}
-        <button className="btn primary" type="submit" disabled={loading}>
-          {loading ? "Creating…" : "Sign Up"}
-        </button>
-      </form>
+    <div className="auth-page">
+      <div className="card auth-card">
+        <div className="auth-header">
+          <UserPlus size={48} />
+          <h1>Create Account</h1>
+          <p>Sign up for an invoice dashboard account</p>
+        </div>
+        
+        <form className="auth-form" onSubmit={onSubmit}>
+          <div className="input-group">
+            <label>Name</label>
+            <input
+              className="input-field"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Your name"
+              required
+            />
+          </div>
+          <div className="input-group">
+            <label>Email Address</label>
+            <input
+              className="input-field"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              type="email"
+              placeholder="you@example.com"
+              required
+            />
+          </div>
+          <div className="input-group">
+            <label>Password</label>
+            <input
+              className="input-field"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              type="password"
+              placeholder="Choose a password"
+              required
+            />
+          </div>
+          
+          {error && <p className="error-text" style={{ fontSize: "0.85rem", marginTop: 8 }}>{error}</p>}
+          
+          <button className="btn primary" type="submit" disabled={loading} style={{ marginTop: 16, width: '100%' }}>
+            {loading ? "Creating Account…" : "Sign Up"}
+          </button>
+        </form>
+
+        <p className="muted" style={{ marginTop: 24, fontSize: "0.9rem" }}>
+          Already have an account? <Link to="/signin" style={{ color: "var(--accent-primary)", textDecoration: "none" }}>Sign In</Link>
+        </p>
+      </div>
     </div>
   );
 }

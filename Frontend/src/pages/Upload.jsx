@@ -1,53 +1,144 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { uploadInvoice, confirmInvoice } from "../api";
+import { UploadCloud, AlertTriangle, CheckCircle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { isAuthenticated } from "../auth";
-import { uploadInvoice } from "../api";
 
 export function Upload() {
-  const navigate = useNavigate();
   const [file, setFile] = useState(null);
   const [status, setStatus] = useState(null);
-
-  useEffect(() => {
-    if (!isAuthenticated()) {
-      navigate("/signin", { replace: true });
-    }
-  }, [navigate]);
+  const [reviewMode, setReviewMode] = useState(false);
+  const [reviewData, setReviewData] = useState(null);
+  const navigate = useNavigate();
 
   const onUpload = async () => {
     if (!file) return;
-    setStatus("Uploading…");
+    setStatus("Extracting data and analyzing footprints...");
     try {
-      await uploadInvoice({ file });
-      setStatus("Upload complete. Invoice has been processed.");
-      setFile(null);
+      const resp = await uploadInvoice({ file });
+      setStatus("Extraction complete. Please review the details closely.");
+      
+      const parsed = resp.extractedData || {};
+      setReviewData({
+        fileName: resp.fileName,
+        extractedData: parsed,
+        warnings: resp.warnings || [],
+        vendor: parsed.vendor || "",
+        amount: parsed.total || 0,
+        date: parsed.issueDate || new Date().toISOString().slice(0, 10),
+        category: parsed.category || "Uncategorized"
+      });
+      setReviewMode(true);
     } catch (error) {
-      if (error.message === "Unauthorized") {
-        navigate("/signin", { replace: true });
-        return;
-      }
       setStatus(error.message || "Upload failed");
     }
   };
 
+  const onConfirm = async () => {
+    setStatus("Authorizing and saving to database...");
+    try {
+      await confirmInvoice({
+        fileName: reviewData.fileName,
+        extractedData: reviewData.extractedData,
+        vendor: reviewData.vendor,
+        amount: reviewData.amount,
+        date: reviewData.date,
+        category: reviewData.category
+      });
+      setStatus("Invoice saved successfully! Redirecting...");
+      setTimeout(() => navigate('/invoices'), 1500);
+    } catch (error) {
+      setStatus(error.message || "Confirmation failed");
+    }
+  };
+
+  const updateReviewField = (key, val) => {
+    setReviewData(prev => ({ ...prev, [key]: val }));
+  };
+
   return (
-    <div className="page upload-page">
+    <div>
       <div className="page-header">
-        <h2>Upload Invoice</h2>
-        <button className="btn secondary" onClick={() => navigate("/dashboard")}>Back</button>
+        <div>
+          <h2 className="page-title">Upload Invoice</h2>
+          <p className="page-subtitle">Upload a PDF or image. All uploads automatically run through intelligent Duplicate & Anomaly scans.</p>
+        </div>
       </div>
 
-      <div className="upload-card">
-        <p className="muted">Select a PDF/image invoice to upload and process via OCR.</p>
-        <input
-          type="file"
-          accept="application/pdf,image/*"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-        />
-        <button className="btn primary" onClick={onUpload} disabled={!file}>
-          Upload & Process
-        </button>
-        {status && <p className="muted">{status}</p>}
+      <div className="card" style={{ maxWidth: 600, margin: '0 auto', textAlign: 'left' }}>
+        {!reviewMode ? (
+          <div style={{ textAlign: 'center' }}>
+            <div className="upload-dropzone">
+              <UploadCloud className="upload-icon" />
+              <span className="upload-text">Drag & drop or click to upload</span>
+              <span className="muted" style={{ fontSize: '0.85rem' }}>Supports PDF, JPG, PNG</span>
+              <input
+                type="file"
+                accept="application/pdf,image/*"
+                onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              />
+            </div>
+            
+            {file && (
+              <div style={{ marginTop: 24, padding: 16, background: 'var(--bg-primary)', borderRadius: 'var(--radius-md)' }}>
+                <p style={{ margin: 0, fontWeight: 500 }}>Selected file:</p>
+                <p className="muted" style={{ margin: '4px 0 0' }}>{file.name}</p>
+              </div>
+            )}
+
+            <button className="btn primary" onClick={onUpload} disabled={!file} style={{ marginTop: 24, width: '100%' }}>
+              Upload & Scan
+            </button>
+            {status && <p className="muted" style={{ marginTop: 16 }}>{status}</p>}
+          </div>
+        ) : (
+          <div>
+            <h3 style={{ marginTop: 0, borderBottom: '1px solid var(--border)', paddingBottom: 16, marginBottom: 16 }}>Review Extraction Details</h3>
+            
+            {reviewData.warnings && reviewData.warnings.length > 0 && (
+              <div style={{ marginBottom: 24 }}>
+                {reviewData.warnings.map((w, idx) => (
+                  <div key={idx} className="alert-banner error" style={{ padding: '12px 16px', borderRadius: 'var(--radius-md)', background: '#FEF2F2', border: '1px solid #FCA5A5', color: '#991B1B', display: 'flex', gap: 12, marginBottom: 8, alignItems: 'flex-start' }}>
+                    <AlertTriangle size={20} style={{ flexShrink: 0, marginTop: 2 }} />
+                    <span style={{ fontWeight: 600 }}>{w}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gap: 16 }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6 }}>Vendor Name</label>
+                <input style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }} value={reviewData.vendor} onChange={e => updateReviewField('vendor', e.target.value)} />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6 }}>Total Amount</label>
+                <input type="number" step="0.01" style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }} value={reviewData.amount} onChange={e => updateReviewField('amount', parseFloat(e.target.value) || 0)} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6 }}>Issue Date</label>
+                <input type="date" style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }} value={reviewData.date?.slice(0,10)} onChange={e => updateReviewField('date', e.target.value)} />
+              </div>
+              
+              <div>
+                <label style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, marginBottom: 6 }}>Category</label>
+                <input style={{ width: '100%', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }} value={reviewData.category} onChange={e => updateReviewField('category', e.target.value)} />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 16, marginTop: 24, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+              <button className="btn secondary" style={{ flex: 1 }} onClick={() => { setFile(null); setReviewMode(false); setStatus(null); }}>
+                Cancel & Re-Upload
+              </button>
+              <button className="btn primary" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }} onClick={onConfirm}>
+                <CheckCircle size={18} /> Confirm & Save
+              </button>
+            </div>
+
+            {status && <p className="muted" style={{ marginTop: 16, textAlign: 'center' }}>{status}</p>}
+          </div>
+        )}
       </div>
     </div>
   );
