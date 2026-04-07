@@ -3,7 +3,7 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend } from "chart.js";
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-export function CategoryChart({ data }) {
+export function CategoryChart({ data, onCategoryClick }) {
   const labels = data.map((d) => d._id || "Uncategorized");
   const totals = data.map((d) => d.total);
 
@@ -28,6 +28,17 @@ export function CategoryChart({ data }) {
         plugins: {
           legend: { position: "bottom" },
         },
+        onClick: (event, elements) => {
+          if (elements && elements.length > 0 && onCategoryClick) {
+            const idx = elements[0].index;
+            onCategoryClick(labels[idx]);
+          }
+        },
+        onHover: (event, chartElement) => {
+          if (event.native && event.native.target) {
+            event.native.target.style.cursor = chartElement && chartElement.length > 0 ? 'pointer' : 'default';
+          }
+        }
       }}
     />
   );

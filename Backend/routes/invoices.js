@@ -195,6 +195,13 @@ router.get("/summary", async (req, res) => {
       { $sort: { total: -1 } },
     ]);
 
+    const vendors = await Invoice.aggregate([
+      { $match: userMatch },
+      { $group: { _id: "$vendor", total: { $sum: "$amount" }, count: { $sum: 1 } } },
+      { $sort: { total: -1 } },
+      { $limit: 10 }
+    ]);
+
     const totals = await Invoice.aggregate([
       { $match: userMatch },
       { $group: { 
@@ -232,7 +239,7 @@ router.get("/summary", async (req, res) => {
 
     const { totalIncome = 0, totalExpense = 0, invoiceCount = 0 } = totals[0] || {};
     const { overdueCount = 0, overdueAmount = 0, pendingCount = 0, pendingAmount = 0 } = statusCounts[0] || {};
-    res.json({ categories, monthly, totalIncome, totalExpense, netBalance: totalIncome - totalExpense, invoiceCount, overdueCount, overdueAmount, pendingCount, pendingAmount });
+    res.json({ categories, vendors, monthly, totalIncome, totalExpense, netBalance: totalIncome - totalExpense, invoiceCount, overdueCount, overdueAmount, pendingCount, pendingAmount });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

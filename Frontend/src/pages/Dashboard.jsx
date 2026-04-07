@@ -3,11 +3,12 @@ import { getSummary, getFiltersLookup, exportReport, getInvoices } from "../api"
 import { SummaryCards } from "../components/SummaryCards";
 import { CategoryChart } from "../components/CategoryChart";
 import { MonthlyChart } from "../components/MonthlyChart";
-import { Loader2, AlertCircle, Filter, LayoutDashboard, BarChart3, Download, Search } from "lucide-react";
+import { Loader2, AlertCircle, Filter, LayoutDashboard, BarChart3, Download, Search, ArrowLeft } from "lucide-react";
 
 import { MonthlyTracker } from "../components/MonthlyTracker";
 import { ProfitLossCards } from "../components/ProfitLossCards";
 import { InvoiceTable } from "../components/InvoiceTable";
+import { VendorChart } from "../components/VendorChart";
 
 export function Dashboard() {
   const [summary, setSummary] = useState(null);
@@ -20,6 +21,30 @@ export function Dashboard() {
 
   const [filters, setFilters] = useState({ vendor: "", category: "", status: "", startDate: "", endDate: "" });
   const [lookup, setLookup] = useState({ vendors: [], categories: [] });
+
+  const [drilledCategory, setDrilledCategory] = useState(null);
+  const [drilledInvoices, setDrilledInvoices] = useState([]);
+  const [drilledLoading, setDrilledLoading] = useState(false);
+
+  useEffect(() => {
+    if (drilledCategory) {
+      setDrilledLoading(true);
+      getInvoices({ category: drilledCategory, limit: 100 })
+        .then(resp => setDrilledInvoices(resp.data))
+        .catch(console.error)
+        .finally(() => setDrilledLoading(false));
+    }
+  }, [drilledCategory]);
+
+  const handleCategoryClick = (category) => {
+    setDrilledCategory(category);
+    updateFilter("category", category);
+  };
+
+  const clearDrillDown = () => {
+    setDrilledCategory(null);
+    updateFilter("category", "");
+  };
 
   const loadSummary = useCallback(async () => {
     setLoading(true);
@@ -180,16 +205,49 @@ export function Dashboard() {
                 <SummaryCards summary={summary} />
               </section>
               
-              <section className="charts-grid">
-                <div className="card chart-card">
-                  <h2>Category Breakdown</h2>
-                  <CategoryChart data={summary?.categories ?? []} />
+              {drilledCategory ? (
+                <div style={{ animation: 'fade-in 0.3s ease-out' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+                    <button className="btn secondary" onClick={clearDrillDown} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <ArrowLeft size={16} /> Back to Overview
+                    </button>
+                    <h2 style={{ margin: 0 }}>Drill-Down: {drilledCategory}</h2>
+                  </div>
+                  <section className="charts-grid" style={{ marginBottom: 24 }}>
+                    <div className="card chart-card">
+                      <h2>Top Vendors in {drilledCategory}</h2>
+                      <VendorChart data={summary?.vendors ?? []} />
+                    </div>
+                    <div className="card chart-card">
+                      <h2>Timeline of {drilledCategory} Spending</h2>
+                      <MonthlyChart data={summary?.monthly ?? []} />
+                    </div>
+                  </section>
+                  <div className="card" style={{ padding: 24 }}>
+                    <h3 style={{ marginTop: 0, marginBottom: 24, fontSize: '1.2rem' }}>
+                      Recent Invoices: {drilledCategory}
+                    </h3>
+                    <InvoiceTable 
+                      invoices={drilledInvoices} 
+                      loading={drilledLoading} 
+                      sort={{ field: 'date', order: 'desc' }} 
+                      onSort={() => {}} 
+                      onRefresh={() => setDrilledCategory(drilledCategory + " ")} 
+                    />
+                  </div>
                 </div>
-                <div className="card chart-card">
-                  <h2>Historical Spending</h2>
-                  <MonthlyChart data={summary?.monthly ?? []} />
-                </div>
-              </section>
+              ) : (
+                <section className="charts-grid">
+                  <div className="card chart-card">
+                    <h2>Category Breakdown</h2>
+                    <CategoryChart data={summary?.categories ?? []} onCategoryClick={handleCategoryClick} />
+                  </div>
+                  <div className="card chart-card">
+                    <h2>Historical Spending</h2>
+                    <MonthlyChart data={summary?.monthly ?? []} />
+                  </div>
+                </section>
+              )}
             </div>
           )}
         </>
