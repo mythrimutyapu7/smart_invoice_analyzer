@@ -238,7 +238,26 @@ router.get("/summary", async (req, res) => {
   }
 });
 
-// 4. DELETE /api/invoices/:id
+// 4. PUT /api/invoices/:id - Update invoice details
+router.put("/:id", async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { vendor, date, dueDate, amount, category, status, notes } = req.body;
+
+    const updatedInvoice = await Invoice.findOneAndUpdate(
+      { _id: req.params.id, userId },
+      { $set: { vendor, date, dueDate, amount, category, status, notes } },
+      { new: true }
+    );
+
+    if (!updatedInvoice) return res.status(404).json({ message: "Invoice not found" });
+    res.json({ message: "Invoice updated successfully", data: updatedInvoice });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// 5. DELETE /api/invoices/:id
 router.delete("/:id", async (req, res) => {
   try {
     const userId = req.user._id;
