@@ -55,6 +55,7 @@ export function InvoiceTable({ invoices, loading, onSort, sort, onRefresh }) {
               <th onClick={() => onSort("date")}>Date{getSortIndicator("date")}</th>
               <th onClick={() => onSort("amount")}>Amount{getSortIndicator("amount")}</th>
               <th onClick={() => onSort("category")}>Category{getSortIndicator("category")}</th>
+              <th>Type</th>
               <th onClick={() => onSort("dueDate")}>Due Date{getSortIndicator("dueDate")}</th>
               <th onClick={() => onSort("status")}>Status{getSortIndicator("status")}</th>
               <th>Notes</th>
@@ -70,6 +71,7 @@ export function InvoiceTable({ invoices, loading, onSort, sort, onRefresh }) {
                 dueDate: invoice.dueDate ? invoice.dueDate.slice(0, 10) : "",
                 amount: invoice.amount ?? 0,
                 category: invoice.category || "",
+                type: invoice.type || "expense",
                 status: invoice.status || "pending",
                 notes: invoice.notes || "",
               };
@@ -123,6 +125,21 @@ export function InvoiceTable({ invoices, loading, onSort, sort, onRefresh }) {
                         }))
                       }
                     />
+                  </td>
+                  <td>
+                    <select
+                      value={editingRow.type ?? row.type}
+                      onChange={(e) =>
+                        setEditing((prev) => ({
+                          ...prev,
+                          [invoice._id]: { ...row, ...prev[invoice._id], type: e.target.value },
+                        }))
+                      }
+                      style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #ddd' }}
+                    >
+                      <option value="expense">Expense</option>
+                      <option value="income">Income</option>
+                    </select>
                   </td>
                   <td>
                     <input

@@ -26,6 +26,12 @@ export function Dashboard() {
   const [drilledInvoices, setDrilledInvoices] = useState([]);
   const [drilledLoading, setDrilledLoading] = useState(false);
 
+  const [refreshToggle, setRefreshToggle] = useState(0);
+  const triggerRefresh = () => {
+    setRefreshToggle(prev => prev + 1);
+    loadSummary();
+  };
+
   useEffect(() => {
     if (drilledCategory) {
       setDrilledLoading(true);
@@ -34,7 +40,7 @@ export function Dashboard() {
         .catch(console.error)
         .finally(() => setDrilledLoading(false));
     }
-  }, [drilledCategory]);
+  }, [drilledCategory, refreshToggle]);
 
   const handleCategoryClick = (category) => {
     setDrilledCategory(category);
@@ -80,7 +86,7 @@ export function Dashboard() {
       finally { setSearchLoading(false); }
     }, 300);
     return () => clearTimeout(timer);
-  }, [globalSearchText]);
+  }, [globalSearchText, refreshToggle]);
 
   const updateFilter = (key, val) => setFilters(p => ({ ...p, [key]: val }));
 
@@ -139,10 +145,7 @@ export function Dashboard() {
              loading={searchLoading} 
              sort={{ field: 'date', order: 'desc' }} 
              onSort={() => {}} 
-             onRefresh={() => {
-               loadSummary();
-               setGlobalSearchText(globalSearchText + " ");
-             }} 
+             onRefresh={triggerRefresh} 
           />
         </div>
       ) : loading ? (
@@ -159,7 +162,7 @@ export function Dashboard() {
           )}
 
           {activeTab === "overview" && (
-            <MonthlyTracker />
+            <MonthlyTracker refreshTrigger={refreshToggle} />
           )}
 
           {activeTab === "analytics" && (
@@ -235,10 +238,7 @@ export function Dashboard() {
                       loading={drilledLoading} 
                       sort={{ field: 'date', order: 'desc' }} 
                       onSort={() => {}} 
-                      onRefresh={() => {
-                        loadSummary();
-                        setDrilledCategory(drilledCategory + " ");
-                      }} 
+                      onRefresh={triggerRefresh} 
                     />
                   </div>
                 </div>

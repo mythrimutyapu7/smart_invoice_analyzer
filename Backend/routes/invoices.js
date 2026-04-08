@@ -109,7 +109,7 @@ router.post("/upload", upload.single("invoice"), async (req, res) => {
 
     console.log("Running Gemini Extraction...");
     const fields = await extractData(req.file.filename);
-    
+
     console.log("----- AI EXTRACTION RESULTS -----");
     console.log(JSON.stringify(fields, null, 2));
     console.log("---------------------------------");
@@ -133,13 +133,13 @@ router.post("/upload", upload.single("invoice"), async (req, res) => {
         { $match: { userId, vendor: vendor } },
         { $group: { _id: null, avgAmount: { $avg: "$amount" }, count: { $sum: 1 } } }
       ]);
-      
+
       if (historical.length > 0) {
-         const { avgAmount, count } = historical[0];
-         // Trigger if amount > 200% of average, and there is a verified footprint (count >= 2)
-         if (count >= 2 && amount > (avgAmount * 2)) {
-           warnings.push(`Anomaly Warning: This amount ($${amount}) is unusually high compared to your historical average ($${avgAmount.toFixed(2)}) for ${vendor}.`);
-         }
+        const { avgAmount, count } = historical[0];
+        // Trigger if amount > 200% of average, and there is a verified footprint (count >= 2)
+        if (count >= 2 && amount > (avgAmount * 2)) {
+          warnings.push(`Anomaly Warning: This amount ($${amount}) is unusually high compared to your historical average ($${avgAmount.toFixed(2)}) for ${vendor}.`);
+        }
       }
     }
 
@@ -155,9 +155,9 @@ router.post("/upload", upload.single("invoice"), async (req, res) => {
 router.post("/confirm", async (req, res) => {
   try {
     const { fileName, extractedData, vendor, invoiceNo, amount, date, category, type } = req.body;
-    
+
     const issueDate = new Date(date);
-    const defaultDueDate = new Date(issueDate.getTime() + 30 * 24 * 60 * 60 * 1000); 
+    const defaultDueDate = new Date(issueDate.getTime() + 30 * 24 * 60 * 60 * 1000);
 
     const invoice = new Invoice({
       userId: req.user._id,
@@ -171,7 +171,7 @@ router.post("/confirm", async (req, res) => {
       amount,
       category,
     });
-    
+
     await invoice.save();
     res.json({ message: "Invoice Confirmed and Saved", invoice });
   } catch (error) {
@@ -185,7 +185,7 @@ router.get("/summary", async (req, res) => {
   try {
     const { vendor, category, status, startDate, endDate } = req.query;
     const userId = req.user._id;
-    
+
     const userMatch = { userId };
     if (vendor) userMatch.vendor = vendor;
     if (category) userMatch.category = category;
@@ -211,12 +211,14 @@ router.get("/summary", async (req, res) => {
 
     const totals = await Invoice.aggregate([
       { $match: userMatch },
-      { $group: { 
-          _id: null, 
+      {
+        $group: {
+          _id: null,
           totalIncome: { $sum: { $cond: [{ $eq: ["$type", "income"] }, "$amount", 0] } },
           totalExpense: { $sum: { $cond: [{ $eq: ["$type", "expense"] }, "$amount", 0] } },
-          invoiceCount: { $sum: 1 } 
-      } },
+          invoiceCount: { $sum: 1 }
+        }
+      },
     ]);
 
     const statusCounts = await Invoice.aggregate([
@@ -256,11 +258,11 @@ router.get("/summary", async (req, res) => {
 router.put("/:id", async (req, res) => {
   try {
     const userId = req.user._id;
-    const { vendor, date, dueDate, amount, category, status, notes } = req.body;
+    const { vendor, date, dueDate, amount, category, status, notes, type } = req.body;
 
     const updatedInvoice = await Invoice.findOneAndUpdate(
       { _id: req.params.id, userId },
-      { $set: { vendor, date, dueDate, amount, category, status, notes } },
+      { $set: { vendor, date, dueDate, amount, category, status, notes, type } },
       { returnDocument: "after" }
     );
 
@@ -300,7 +302,7 @@ router.get("/monthly-insights", async (req, res) => {
   try {
     const userId = req.user._id;
     let { month, year } = req.query;
-    
+
     let now = new Date();
     if (month && year) {
       now = new Date(year, month - 1, 1);
@@ -311,7 +313,7 @@ router.get("/monthly-insights", async (req, res) => {
         now = new Date(latestInvoice.date);
       }
     }
-    
+
     const targetMonth = now.getMonth();
     const targetYear = now.getFullYear();
 
@@ -319,12 +321,15 @@ router.get("/monthly-insights", async (req, res) => {
     const lastDayThisMonth = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59);
     const firstDayLastMonth = new Date(targetYear, targetMonth - 1, 1);
     const lastDayLastMonth = new Date(targetYear, targetMonth, 0, 23, 59, 59);
-    
+
+    console.log(`[DEBUG] Monthly Insights Query: Month=${targetMonth + 1}, Year=${targetYear}`);
+    console.log(`[DEBUG] Range: ${firstDayThisMonth.toISOString()} to ${lastDayThisMonth.toISOString()}`);
+
     const thisMonthInvoices = await Invoice.find({
       userId,
       date: { $gte: firstDayThisMonth, $lte: lastDayThisMonth }
     });
-    
+
     const lastMonthInvoices = await Invoice.find({
       userId,
       date: { $gte: firstDayLastMonth, $lte: lastDayLastMonth }
@@ -351,14 +356,14 @@ router.get("/monthly-insights", async (req, res) => {
     thisMonthInvoices.forEach(inv => {
       const day = new Date(inv.date).getDate() - 1;
       if (dailyData[day]) dailyData[day].total += (inv.amount || 0);
-      
+
       const cat = inv.category || "Other";
       categoryTotals[cat] = (categoryTotals[cat] || 0) + (inv.amount || 0);
     });
 
     const categoryData = Object.entries(categoryTotals)
       .map(([name, value]) => ({ name, value }))
-      .sort((a,b) => b.value - a.value);
+      .sort((a, b) => b.value - a.value);
 
     res.json({
       month: targetMonth + 1,
@@ -399,7 +404,7 @@ router.get("/export", async (req, res) => {
     if (format === "csv") {
       res.setHeader("Content-Type", "text/csv");
       res.setHeader("Content-Disposition", 'attachment; filename="invoices_report.csv"');
-      
+
       let csv = "Invoice No,Vendor,Category,Date,Due Date,Status,Amount\n";
       invoices.forEach(inv => {
         csv += `"${inv.invoiceNo || ''}","${inv.vendor}","${inv.category}","${formatDate(inv.date)}","${formatDate(inv.dueDate)}","${inv.status}",${inv.amount}\n`;
@@ -408,18 +413,18 @@ router.get("/export", async (req, res) => {
     } else if (format === "pdf") {
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", 'attachment; filename="invoices_report.pdf"');
-      
+
       const doc = new PDFDocument({ margin: 40 });
       doc.pipe(res);
-      
+
       doc.fontSize(20).text("Financial Report", { align: "center" });
       doc.moveDown(0.5);
       doc.fontSize(10).fillColor("gray").text(`Generated on: ${new Date().toLocaleString()}`, { align: "center" });
       doc.moveDown(2);
-      
+
       const totalAmount = invoices.reduce((s, i) => s + i.amount, 0);
       const overdueAmount = invoices.filter(i => i.status === 'overdue').reduce((s, i) => s + i.amount, 0);
-      
+
       doc.fillColor("black").fontSize(12).text(`Total Invoices: ${invoices.length}`);
       doc.text(`Total Expenditure: $${totalAmount.toFixed(2)}`);
       if (overdueAmount > 0) {
@@ -434,7 +439,7 @@ router.get("/export", async (req, res) => {
       doc.text("Category", 300, tableTop);
       doc.text("Status", 420, tableTop);
       doc.text("Amount", 500, tableTop);
-      
+
       doc.moveTo(40, tableTop + 15).lineTo(550, tableTop + 15).stroke();
 
       let y = tableTop + 25;
@@ -451,7 +456,7 @@ router.get("/export", async (req, res) => {
         doc.fillColor('black').text(`$${inv.amount.toFixed(2)}`, 500, y);
         y += 20;
       });
-      
+
       doc.end();
     } else {
       res.status(400).json({ message: "Invalid format requested." });

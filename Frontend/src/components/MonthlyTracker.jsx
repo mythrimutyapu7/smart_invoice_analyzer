@@ -30,7 +30,7 @@ ChartJS.register(
 
 const COLORS = ['#4318FF', '#00B5D8', '#FF6347', '#FFD700', '#8A2BE2', '#32CD32'];
 
-export function MonthlyTracker() {
+export function MonthlyTracker({ refreshTrigger }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({ month: "", year: "" });
@@ -46,7 +46,7 @@ export function MonthlyTracker() {
       })
       .catch(console.error)
       .finally(() => setLoading(false));
-  }, [filters.month, filters.year]);
+  }, [filters.month, filters.year, refreshTrigger]);
 
   if (loading && !data) {
     return <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}><Loader2 className="muted" size={24} style={{ animation: 'spin 1s linear infinite' }} /></div>;
