@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { updateInvoice, deleteInvoice } from "../api";
-import { formatCurrency } from "../utils";
+import { formatCurrency, formatDate } from "../utils";
 
 export function InvoiceTable({ invoices, loading, onSort, sort, onRefresh }) {
   const [editing, setEditing] = useState({});
@@ -10,14 +10,32 @@ export function InvoiceTable({ invoices, loading, onSort, sort, onRefresh }) {
   const sorted = useMemo(() => invoices, [invoices]);
 
   const save = async (id, rowValues) => {
-    await updateInvoice(id, rowValues);
-    onRefresh();
+    try {
+      await updateInvoice(id, rowValues);
+      setEditing((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      onRefresh();
+    } catch (err) {
+      alert("Failed to save invoice. Please try again.");
+    }
   };
 
   const remove = async (id) => {
     if (!window.confirm("Delete this invoice?")) return;
-    await deleteInvoice(id);
-    onRefresh();
+    try {
+      await deleteInvoice(id);
+      setEditing((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      onRefresh();
+    } catch (err) {
+      alert("Failed to delete invoice.");
+    }
   };
 
   const getSortIndicator = (field) => {
@@ -72,6 +90,7 @@ export function InvoiceTable({ invoices, loading, onSort, sort, onRefresh }) {
                   <td>
                     <input
                       type="date"
+                      title={formatDate(editingRow.date ?? row.date)}
                       value={editingRow.date ?? row.date}
                       onChange={(e) =>
                         setEditing((prev) => ({
@@ -108,6 +127,7 @@ export function InvoiceTable({ invoices, loading, onSort, sort, onRefresh }) {
                   <td>
                     <input
                       type="date"
+                      title={formatDate(editingRow.dueDate ?? row.dueDate)}
                       value={editingRow.dueDate ?? row.dueDate}
                       onChange={(e) =>
                         setEditing((prev) => ({

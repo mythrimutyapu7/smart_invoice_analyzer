@@ -48,8 +48,9 @@ export async function getFiltersLookup() {
   return apiFetch(`${API_BASE}/filters-lookup`);
 }
 
-export async function getMonthlyInsights() {
-  return apiFetch(`${API_BASE}/monthly-insights`);
+export async function getMonthlyInsights(options = {}) {
+  const url = buildUrl(`${API_BASE}/monthly-insights`, options);
+  return apiFetch(url);
 }
 
 export async function exportReport(options = {}, format = "csv") {

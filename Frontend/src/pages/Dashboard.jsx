@@ -139,7 +139,10 @@ export function Dashboard() {
              loading={searchLoading} 
              sort={{ field: 'date', order: 'desc' }} 
              onSort={() => {}} 
-             onRefresh={() => setGlobalSearchText(globalSearchText + " ")} 
+             onRefresh={() => {
+               loadSummary();
+               setGlobalSearchText(globalSearchText + " ");
+             }} 
           />
         </div>
       ) : loading ? (
@@ -232,7 +235,10 @@ export function Dashboard() {
                       loading={drilledLoading} 
                       sort={{ field: 'date', order: 'desc' }} 
                       onSort={() => {}} 
-                      onRefresh={() => setDrilledCategory(drilledCategory + " ")} 
+                      onRefresh={() => {
+                        loadSummary();
+                        setDrilledCategory(drilledCategory + " ");
+                      }} 
                     />
                   </div>
                 </div>

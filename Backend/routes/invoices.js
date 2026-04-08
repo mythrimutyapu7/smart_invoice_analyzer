@@ -8,6 +8,15 @@ const extractData = require("../services/ocr");
 
 const router = express.Router();
 
+const formatDate = (date) => {
+  if (!date) return "";
+  const d = new Date(date);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const year = d.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
 async function checkAndMarkOverdue(userId) {
   try {
     await Invoice.updateMany({
@@ -55,7 +64,6 @@ router.get("/", async (req, res) => {
     } = req.query;
 
     const userId = req.user._id;
-    await checkAndMarkOverdue(userId);
     const filter = { userId };
 
     if (search) {
@@ -177,7 +185,6 @@ router.get("/summary", async (req, res) => {
   try {
     const { vendor, category, status, startDate, endDate } = req.query;
     const userId = req.user._id;
-    await checkAndMarkOverdue(userId);
     
     const userMatch = { userId };
     if (vendor) userMatch.vendor = vendor;
@@ -254,7 +261,7 @@ router.put("/:id", async (req, res) => {
     const updatedInvoice = await Invoice.findOneAndUpdate(
       { _id: req.params.id, userId },
       { $set: { vendor, date, dueDate, amount, category, status, notes } },
-      { new: true }
+      { returnDocument: "after" }
     );
 
     if (!updatedInvoice) return res.status(404).json({ message: "Invoice not found" });
@@ -292,23 +299,39 @@ router.get("/filters-lookup", async (req, res) => {
 router.get("/monthly-insights", async (req, res) => {
   try {
     const userId = req.user._id;
-    const now = new Date();
+    let { month, year } = req.query;
     
-    const firstDayThisMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const firstDayLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    let now = new Date();
+    if (month && year) {
+      now = new Date(year, month - 1, 1);
+    } else {
+      // Smart Default: Find the latest month that has invoices
+      const latestInvoice = await Invoice.findOne({ userId }).sort({ date: -1 });
+      if (latestInvoice && latestInvoice.date) {
+        now = new Date(latestInvoice.date);
+      }
+    }
+    
+    const targetMonth = now.getMonth();
+    const targetYear = now.getFullYear();
+
+    const firstDayThisMonth = new Date(targetYear, targetMonth, 1);
+    const lastDayThisMonth = new Date(targetYear, targetMonth + 1, 0, 23, 59, 59);
+    const firstDayLastMonth = new Date(targetYear, targetMonth - 1, 1);
+    const lastDayLastMonth = new Date(targetYear, targetMonth, 0, 23, 59, 59);
     
     const thisMonthInvoices = await Invoice.find({
       userId,
-      date: { $gte: firstDayThisMonth }
+      date: { $gte: firstDayThisMonth, $lte: lastDayThisMonth }
     });
     
     const lastMonthInvoices = await Invoice.find({
       userId,
-      date: { $gte: firstDayLastMonth, $lt: firstDayThisMonth }
+      date: { $gte: firstDayLastMonth, $lte: lastDayLastMonth }
     });
 
-    const thisMonthTotal = thisMonthInvoices.reduce((sum, inv) => sum + inv.amount, 0);
-    const lastMonthTotal = lastMonthInvoices.reduce((sum, inv) => sum + inv.amount, 0);
+    const thisMonthTotal = thisMonthInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
+    const lastMonthTotal = lastMonthInvoices.reduce((sum, inv) => sum + (inv.amount || 0), 0);
 
     let growthFactor = 0;
     if (lastMonthTotal === 0 && thisMonthTotal > 0) {
@@ -317,7 +340,7 @@ router.get("/monthly-insights", async (req, res) => {
       growthFactor = ((thisMonthTotal - lastMonthTotal) / lastMonthTotal) * 100;
     }
 
-    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const daysInMonth = lastDayThisMonth.getDate();
     const dailyData = Array.from({ length: daysInMonth }, (_, i) => ({
       day: `${i + 1}`,
       total: 0
@@ -327,10 +350,10 @@ router.get("/monthly-insights", async (req, res) => {
 
     thisMonthInvoices.forEach(inv => {
       const day = new Date(inv.date).getDate() - 1;
-      if (dailyData[day]) dailyData[day].total += inv.amount;
+      if (dailyData[day]) dailyData[day].total += (inv.amount || 0);
       
-      const cat = inv.category || "Uncategorized";
-      categoryTotals[cat] = (categoryTotals[cat] || 0) + inv.amount;
+      const cat = inv.category || "Other";
+      categoryTotals[cat] = (categoryTotals[cat] || 0) + (inv.amount || 0);
     });
 
     const categoryData = Object.entries(categoryTotals)
@@ -338,6 +361,8 @@ router.get("/monthly-insights", async (req, res) => {
       .sort((a,b) => b.value - a.value);
 
     res.json({
+      month: targetMonth + 1,
+      year: targetYear,
       thisMonthTotal,
       lastMonthTotal,
       growthFactor: parseFloat(growthFactor.toFixed(1)),
@@ -377,7 +402,7 @@ router.get("/export", async (req, res) => {
       
       let csv = "Invoice No,Vendor,Category,Date,Due Date,Status,Amount\n";
       invoices.forEach(inv => {
-        csv += `"${inv.invoiceNo || ''}","${inv.vendor}","${inv.category}","${new Date(inv.date).toLocaleDateString()}","${new Date(inv.dueDate).toLocaleDateString()}","${inv.status}",${inv.amount}\n`;
+        csv += `"${inv.invoiceNo || ''}","${inv.vendor}","${inv.category}","${formatDate(inv.date)}","${formatDate(inv.dueDate)}","${inv.status}",${inv.amount}\n`;
       });
       return res.send(csv);
     } else if (format === "pdf") {
@@ -419,7 +444,7 @@ router.get("/export", async (req, res) => {
           doc.addPage();
           y = 40;
         }
-        doc.text(new Date(inv.date).toLocaleDateString(), 40, y);
+        doc.text(formatDate(inv.date), 40, y);
         doc.text(inv.vendor.substring(0, 30), 120, y);
         doc.text(inv.category.substring(0, 18), 300, y);
         doc.fillColor(inv.status === 'overdue' ? 'red' : inv.status === 'paid' ? 'green' : 'black').text(inv.status.toUpperCase(), 420, y);

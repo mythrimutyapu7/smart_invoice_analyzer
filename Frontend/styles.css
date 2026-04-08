@@ -303,6 +303,36 @@ td button.delete {
   color: #fff;
 }
 
+.badge {
+  padding: 8px 16px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  border: 1px solid rgba(0,0,0,0.08);
+  min-width: 120px;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  white-space: nowrap;
+}
+
+.badge.paid {
+  background: #E6F4EA;
+  color: #1E8E3E;
+}
+
+.badge.pending {
+  background: #FEF3C7;
+  color: #92400E;
+}
+
+.badge.overdue {
+  background: #FEE2E2;
+  color: #D93025;
+}
+
 .toast {
   position: fixed;
   bottom: 24px;
