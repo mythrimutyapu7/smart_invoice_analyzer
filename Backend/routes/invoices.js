@@ -407,7 +407,9 @@ router.get("/export", async (req, res) => {
 
       let csv = "Invoice No,Vendor,Category,Date,Due Date,Status,Amount\n";
       invoices.forEach(inv => {
-        csv += `"${inv.invoiceNo || ''}","${inv.vendor}","${inv.category}","${formatDate(inv.date)}","${formatDate(inv.dueDate)}","${inv.status}",${inv.amount}\n`;
+        const dateStr = inv.date ? new Date(inv.date).toISOString().split('T')[0] : "";
+        const dueStr = inv.dueDate ? new Date(inv.dueDate).toISOString().split('T')[0] : "";
+        csv += `"${inv.invoiceNo || ''}","${inv.vendor}","${inv.category}","${dateStr}","${dueStr}","${inv.status}",${inv.amount}\n`;
       });
       return res.send(csv);
     } else if (format === "pdf") {
